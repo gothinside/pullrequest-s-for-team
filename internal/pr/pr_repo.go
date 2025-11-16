@@ -41,13 +41,11 @@ type PullRequestRepoInterface interface {
 }
 
 func (PR *PullRequestRepo) AssignedReviewer(ctx context.Context, PrID, UserID string) (*PullRequest, string, error) {
-	// 1. Get team ID for the reviewer
 	teamID, err := PR.TR.GetTeamByUserID(ctx, UserID)
 	if err != nil {
 		return nil, "", err
 	}
 
-	// 2. Get the PR
 	pr, err := PR.GetPr(ctx, PrID)
 	if err != nil {
 		return nil, "", err
@@ -56,8 +54,6 @@ func (PR *PullRequestRepo) AssignedReviewer(ctx context.Context, PrID, UserID st
 	if pr.Status == "MERGED" {
 		return nil, "", errs.PRMergedError
 	}
-
-	// 3. Get all team members
 	users, err := PR.TR.GetTeamMember(ctx, teamID)
 	if err != nil {
 		return nil, "", err
@@ -287,7 +283,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 		}
 	}
 
-	// 9. Commit transaction
+	Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
