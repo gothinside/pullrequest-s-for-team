@@ -282,8 +282,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 			return nil, fmt.Errorf("failed to insert reviewer %s: %w", reviewerID, err)
 		}
 	}
-
-	//Commit transaction
+	
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
