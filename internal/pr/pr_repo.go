@@ -283,7 +283,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 		}
 	}
 
-	Commit transaction
+	//Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
