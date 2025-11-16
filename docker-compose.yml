@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  avito-pull_req-service:
+      build: .
+      container_name: avito-pr-service
+      ports:
+        - "8080:8080"
+      environment:
+        # енвы подключения к БД
+        - DATABASE_PORT=${DB_PORT}
+        - DATABASE_USER=${DB_USER}
+        - DATABASE_PASSWORD=${DB_PASSWORD}
+        - DATABASE_NAME=${DB_NAME}
+        - DATABASE_HOST=${DB_HOST}
+        # порт сервиса
+        - SERVER_PORT=${SERVER_PORT}
+      depends_on:
+        db:
+            condition: service_healthy
+      networks:
+        - internal
+      env_file:
+      - .env
+  
+  db:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - ./deployments/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5431:5431"
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U postgres -d pullrequest'"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+    env_file:
+      - .env
+networks:
+  internal:

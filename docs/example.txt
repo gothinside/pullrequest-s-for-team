@@ -1,0 +1,94 @@
+curl -X POST http://localhost:8080/team/add \
+     -H "Content-Type: application/json" \
+     -d '{
+           "team_name": "payments2",
+           "members": [
+             {
+               "user_id": "u1",
+               "username": "Alice",
+               "is_active": true
+             },
+             {
+               "user_id": "u2",
+               "username": "Bob",
+               "is_active": true
+             }
+           ]
+         }'
+
+curl -X POST http://localhost:8080/team/add \
+     -H "Content-Type: application/json" \
+     -d '{
+           "team_name": "payments3",
+           "members": [
+             {
+               "user_id": "u1",
+               "username": "Eldar",
+               "is_active": true
+             },
+             {
+               "user_id": "u2",
+               "username": "Vlad",
+               "is_active": true
+             }
+           ]
+         }'
+
+curl -X GET "http://localhost:8080/team/get?team_name=payments3"
+
+curl -X POST http://localhost:8080/users/setIsActive \
+     -H "Content-Type: application/json" \
+     -d '{"user_id": "u1", "is_active": false}'
+
+curl -X POST http://localhost:8080/pullRequest/create \
+-H "Content-Type: application/json" \
+-d '{
+  "pull_request_id": "pr-1001",
+  "pull_request_name": "Add search",
+  "author_id": "u1"
+}'
+
+curl -X POST http://localhost:8080/team/add \
+     -H "Content-Type: application/json" \
+     -d '{
+           "team_name": "payment3",
+           "members": [
+             {
+               "user_id": "u1",
+               "username": "Eldar",
+               "is_active": true
+             },
+             {
+               "user_id": "u2",
+               "username": "Vlad",
+               "is_active": true
+             },
+             {
+               "user_id": "u3",
+               "username": "Vlad1",
+               "is_active": true
+             }
+           ]
+         }'
+
+curl -X POST http://localhost:8080/pullRequest/merge \
+     -H "Content-Type: application/json" \
+     -d '{
+           "pull_request_id": "pr-1001"
+         }'
+
+
+curl -X POST http://localhost:8080/pullRequest/reassign \
+     -H "Content-Type: application/json" \
+     -d '{
+           "pull_request_id": "pr-1001",
+           "old_user_id": "u2"
+         }'
+
+curl -X GET "http://localhost:8080/users/getReview?user_id=u2"
+
+curl -X GET "http://localhost:8080/users/getStat?user_id=u2"
+
+curl -X POST "http://localhost:8080/team/deactivate" \
+  -H "Content-Type: application/json" \
+  -d '{"team_id": 1}"
