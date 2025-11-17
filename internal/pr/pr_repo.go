@@ -3,7 +3,6 @@ package pr
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"math/rand/v2"
 	"pullreq/internal/errs"
 	"pullreq/internal/team"
@@ -54,6 +53,10 @@ func (PR *PullRequestRepo) AssignedReviewer(ctx context.Context, PrID, UserID st
 	if pr.Status == "MERGED" {
 		return nil, "", errs.PRMergedError
 	}
+<<<<<<< HEAD
+=======
+
+>>>>>>> dbe791d (-a)
 	users, err := PR.TR.GetTeamMember(ctx, teamID)
 	if err != nil {
 		return nil, "", err
@@ -100,39 +103,33 @@ func (PR *PullRequestRepo) AssignedReviewer(ctx context.Context, PrID, UserID st
 		return nil, "", err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, "", err
-	}
-	updatedPR, err := PR.GetPr(ctx, PrID)
-	if err != nil {
-		return nil, "", err
-	}
 	statBuilder := psql.Insert("usershistory").Columns("user_id", "pr_count")
-	//for statsitic
 	q, args, err := statBuilder.
 		Values(newReviewer, 1).
 		Suffix("ON CONFLICT (user_id) DO UPDATE SET pr_count = usershistory.pr_count + 1").
 		ToSql()
-
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build insert reviewer query: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, q, args...); err != nil {
-		return nil, "", fmt.Errorf("failed to insert reviewer %s: %w", newReviewer, err)
+		return nil, "", err
 	}
 
-	return updatedPR, newReviewer, nil
+	if _, err := tx.ExecContext(ctx, q, args...); err != nil {
+		return nil, "", err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, "", err
+	}
+
+	updatedPR, err := PR.GetPr(ctx, PrID)
+	return updatedPR, newReviewer, err
 }
 
 func (PR *PullRequestRepo) Check(ctx context.Context, ID string) error {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	checkQuery, checkArgs, err := psql.Select("TRUE").
-		From("pr").
-		Where(sq.Eq{"id": ID}).
-		ToSql()
+	checkQuery, checkArgs, err := psql.Select("TRUE").From("pr").Where(sq.Eq{"id": ID}).ToSql()
 	if err != nil {
-		return fmt.Errorf("error building check query: %w", err)
+		return err
 	}
 
 	rows, err := PR.DB.QueryContext(ctx, checkQuery, checkArgs...)
@@ -170,18 +167,17 @@ func (PR *PullRequestRepo) GetPr(ctx context.Context, ID string) (*PullRequest, 
 		rows.Scan(&res.ID, &res.PullRequestName, &res.AuthorID, &res.Status, &userID)
 		res.AssignedReviewers = append(res.AssignedReviewers, userID)
 	}
+
 	if !exist {
 		return nil, errs.NotFountError
 	}
-	fmt.Println(res)
-	return res, nil
 
+	return res, nil
 }
 
 func (PR *PullRequestRepo) Merged(ctx context.Context, ID string) (*PullRequest, error) {
 	pr, err := PR.GetPr(ctx, ID)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 
@@ -190,8 +186,7 @@ func (PR *PullRequestRepo) Merged(ctx context.Context, ID string) (*PullRequest,
 	}
 
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	q, args, err := psql.
-		Update("pr").
+	q, args, err := psql.Update("pr").
 		Set("pr_status", "MERGED").
 		Set("mergerd_at", time.Now()).
 		Where(sq.Eq{"ID": ID}).
@@ -218,7 +213,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 
 	users, err := PR.TR.GetTeamMember(ctx, teamID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get team members: %w", err)
+		return nil, err
 	}
 
 	activeusers := make([]*user.User, 0)
@@ -229,6 +224,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 	}
 
 	reviews := selectReviewers(activeusers)
+
 	pr := &PullRequest{
 		ID:                req.ID,
 		PullRequestName:   req.PullRequestName,
@@ -241,7 +237,7 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 
 	tx, err := PR.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, err
 	}
 	defer tx.Rollback()
 
@@ -250,41 +246,43 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 		Values(req.ID, req.PullRequestName, req.AuthorID, "OPEN").
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build insert PR query: %w", err)
+		return nil, err
 	}
 
 	if _, err := tx.ExecContext(ctx, insertPR, args...); err != nil {
-		return nil, fmt.Errorf("failed to insert PR: %w", err)
+		return nil, err
 	}
 
 	reviewBuilder := psql.Insert("userspr").Columns("user_id", "request_id")
 	statBuilder := psql.Insert("usershistory").Columns("user_id", "pr_count")
+
 	for _, reviewerID := range reviews {
-		//insert
 		q, args, err := reviewBuilder.Values(reviewerID, req.ID).ToSql()
 		if err != nil {
-			return nil, fmt.Errorf("failed to build insert reviewer query: %w", err)
+			return nil, err
 		}
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
-			return nil, fmt.Errorf("failed to insert reviewer %s: %w", reviewerID, err)
+			return nil, err
 		}
 
-		//for statsitic
 		q, args, err = statBuilder.
 			Values(reviewerID, 1).
 			Suffix("ON CONFLICT (user_id) DO UPDATE SET pr_count = usershistory.pr_count + 1").
 			ToSql()
-
 		if err != nil {
-			return nil, fmt.Errorf("failed to build insert reviewer query: %w", err)
+			return nil, err
 		}
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
-			return nil, fmt.Errorf("failed to insert reviewer %s: %w", reviewerID, err)
+			return nil, err
 		}
 	}
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> dbe791d (-a)
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, err
 	}
 
 	return pr, nil
@@ -296,7 +294,6 @@ func selectReviewers(users []*user.User) []string {
 	if len(users) == 1 {
 		reviews = append(reviews, users[0].Id)
 	} else {
-		fmt.Println("THIS")
 		v1 := rand.IntN(len(users))
 		v2 := rand.IntN(len(users))
 		if v1 == v2 {
