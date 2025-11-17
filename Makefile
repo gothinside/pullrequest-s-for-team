@@ -45,3 +45,7 @@ docker_compose:
 	@echo "-- starting docker compose"
 	docker compose -f docker-compose.yml up
 
+
+docker_compose_down:
+	@echo "-- stopping docker compose"
+	docker compose -f docker-compose.yml down

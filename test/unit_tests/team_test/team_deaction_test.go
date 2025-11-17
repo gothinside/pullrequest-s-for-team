@@ -32,24 +32,30 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 	return db
 }
-func TestAddUsers(t *testing.T) {
+func TestTeamRepo_Deactivation_Success(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := &team.TeamRepo{DB: db}
-
-	mock.ExpectBegin()
-
-	mock.ExpectExec(`UPDATE users`).
-		WithArgs(false, 10). // пример деактивации
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	mock.ExpectCommit()
+	tr := &team.TeamRepo{DB: db}
 
 	ctx := context.Background()
+	teamName := "backend"
 
-	// вызов метода
-	err = repo.Deactivation(ctx, 10)
+	// Expect transaction begin
+	mock.ExpectBegin()
+
+	// SQL ожидаемый для обновления юзеров
+	mock.ExpectExec(`UPDATE users u SET is_active = \$1 FROM teams t WHERE u.team_id = t.id AND t.team_name = \$2`).
+		WithArgs(false, teamName).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	// Expect commit
+	mock.ExpectCommit()
+
+	err = tr.Deactivation(ctx, teamName)
 	require.NoError(t, err)
+
+	// Проверка, что все ожидания выполнены
+	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -22,7 +22,7 @@ type TeamRepoInterface interface {
 	GetTeamWithMembers(ctx context.Context, teamName string) (*Team, error)
 	GetTeamByUserID(ctx context.Context, userID string) (int, error)
 	GetTeamMember(ctx context.Context, teamID int) ([]*user.User, error)
-	Deactivation(ctx context.Context, teamID int) error
+	Deactivation(ctx context.Context, teanName string) error
 }
 
 type TeamRepo struct {
@@ -30,25 +30,31 @@ type TeamRepo struct {
 	UR user.UserRepoInterface
 }
 
-func (TR *TeamRepo) Deactivation(ctx context.Context, team_id int) error {
+func (TR *TeamRepo) Deactivation(ctx context.Context, teamName string) error {
 	tx, err := TR.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 	q, args, err := psql.
-		Update("users").
+		Update("users u").
 		Set("is_active", false).
-		Where(sq.Eq{"team_id": team_id}).
+		From("teams t").
+		Where("u.team_id = t.id AND t.team_name = ?", teamName).
 		ToSql()
+
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, q, args...)
-	if err != nil {
+	if _, err = tx.ExecContext(ctx, q, args...); err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	return nil
-
+	return tx.Commit()
 }
 
 func (TR *TeamRepo) GetTeamByUserID(ctx context.Context, userID string) (int, error) {
@@ -59,7 +65,7 @@ func (TR *TeamRepo) GetTeamByUserID(ctx context.Context, userID string) (int, er
 		Where(sq.Eq{"id": userID}).
 		ToSql()
 	if err != nil {
-		return -1, err // SQL query building error
+		return -1, err
 	}
 
 	var id int = -1
@@ -83,21 +89,18 @@ func (TR *TeamRepo) GetTeamByUserID(ctx context.Context, userID string) (int, er
 func (TR *TeamRepo) AddTeam(ctx context.Context, teamName string, members []TeamMember) (*Team, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	// Start transaction
-	fmt.Println("Start")
 	tx, err := TR.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			tx.Rollback()
-		} else {
-			tx.Commit()
 		}
 	}()
 
-	// 1. Insert team
 	sqlTeam, argsTeam, err := psql.
 		Insert("teams").
 		Columns("team_name").
@@ -108,44 +111,45 @@ func (TR *TeamRepo) AddTeam(ctx context.Context, teamName string, members []Team
 		return nil, err
 	}
 
-	rows, err := tx.QueryContext(ctx, sqlTeam, argsTeam...)
-	if err != nil {
-		fmt.Println(err)
+	var teamID int
+	if err := tx.QueryRowContext(ctx, sqlTeam, argsTeam...).Scan(&teamID); err != nil {
 		if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
-			fmt.Println(pgErr)
 			return nil, errs.ExistError
 		}
 		return nil, err
 	}
 
 	team := &Team{
+		ID:       teamID,
 		TeamName: teamName,
-		Members:  []*user.User{},
+		Members:  make([]*user.User, 0, len(members)),
 	}
 
-	if rows.Next() {
-		if err := rows.Scan(&team.ID); err != nil {
+	if len(members) > 0 {
+		insertBuilder := psql.Insert("users").Columns("id", "username", "team_id", "is_active")
+		for _, m := range members {
+			insertBuilder = insertBuilder.Values(m.UserID, m.Username, teamID, m.IsActive)
+			team.Members = append(team.Members, &user.User{
+				Id:       m.UserID,
+				Username: m.Username,
+				TeamID:   teamID,
+				IsActive: m.IsActive,
+			})
+		}
+		sqlUsers, argsUsers, err := insertBuilder.ToSql()
+		if err != nil {
 			return nil, err
 		}
-	} else {
-		return nil, fmt.Errorf("failed to insert team")
-	}
-	rows.Close()
-	// Add members inside the same transaction
-	for _, u := range members {
-		newUser := &user.User{
-			Id:       u.UserID,
-			Username: u.Username,
-			TeamID:   team.ID,
-			IsActive: u.IsActive,
+		if _, err := tx.ExecContext(ctx, sqlUsers, argsUsers...); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to insert users: %w", err)
 		}
-		err = TR.UR.AddUser(ctx, tx, newUser) // pass tx, not DB
-		if err != nil {
-			return nil, fmt.Errorf("failed to add user %s: %w", u.Username, err)
-		}
-		team.Members = append(team.Members, newUser)
 	}
-	tx.Commit()
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return team, nil
 }
 

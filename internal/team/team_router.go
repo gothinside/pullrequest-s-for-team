@@ -47,7 +47,7 @@ type TeamRes struct {
 }
 
 type DeactivateTeamRequest struct {
-	TeamID int `json:"team_id"`
+	TeamName string `json:"team_name"`
 }
 
 func (tr *TeamRouter) DeactivateTeam(w http.ResponseWriter, r *http.Request) {
@@ -62,25 +62,23 @@ func (tr *TeamRouter) DeactivateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.TeamID == 0 {
+	if req.TeamName == "" {
 		http.Error(w, "team_id is required", http.StatusBadRequest)
 		return
 	}
 
-	err := tr.TR.Deactivation(ctx, req.TeamID)
+	err := tr.TR.Deactivation(ctx, req.TeamName)
 	if err != nil {
-		// логика ошибок на твой вкус
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	json.NewEncoder(w).Encode(map[string]any{
-		"status":  "ok",
-		"team_id": req.TeamID,
-	})
+	team, err := tr.TR.GetTeamWithMembers(ctx, req.TeamName)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonutils.JsonResponse(w, map[string]interface{}{"team": team}, http.StatusOK)
 }
 
 func (tr *TeamRouter) HandleAddTeam(w http.ResponseWriter, r *http.Request) {

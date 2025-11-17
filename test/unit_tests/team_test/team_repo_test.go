@@ -11,55 +11,50 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTeamRepo_AddTeam_Success(t *testing.T) {
-	db, mock, _ := sqlmock.New()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
 	defer db.Close()
 
 	ur := &user.UserRepo{DB: db}
 	tr := &team.TeamRepo{DB: db, UR: ur}
 
 	ctx := context.Background()
-
 	teamName := "backend"
 	members := []team.TeamMember{
 		{UserID: "u1", Username: "Alice", IsActive: true},
 		{UserID: "u2", Username: "Bob", IsActive: true},
 	}
 
-	// Transaction begin
+	// --- Transaction begin ---
 	mock.ExpectBegin()
 
-	// Insert team
+	// --- Insert team ---
 	mock.ExpectQuery(`INSERT INTO teams`).
 		WithArgs(teamName).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(10))
 
-	// Insert users (ON CONFLICT DO UPDATE)
+	// --- Insert users (single query with multiple VALUES) ---
 	mock.ExpectExec(`INSERT INTO users`).
-		WithArgs("u1", "Alice", 10, true).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+		WithArgs(
+			"u1", "Alice", 10, true,
+			"u2", "Bob", 10, true,
+		).
+		WillReturnResult(sqlmock.NewResult(2, 2))
 
-	mock.ExpectExec(`INSERT INTO users`).
-		WithArgs("u2", "Bob", 10, true).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Commit
+	// --- Commit ---
 	mock.ExpectCommit()
 
+	// --- Call AddTeam ---
 	res, err := tr.AddTeam(ctx, teamName, members)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if res.TeamName != teamName {
-		t.Fatalf("expected team name %s, got %s", teamName, res.TeamName)
-	}
-
-	if len(res.Members) != 2 {
-		t.Fatalf("expected 2 members, got %d", len(res.Members))
-	}
+	require.NoError(t, err)
+	require.Equal(t, teamName, res.TeamName)
+	require.Len(t, res.Members, 2)
+	require.Equal(t, "u1", res.Members[0].Id)
+	require.Equal(t, "u2", res.Members[1].Id)
 }
 
 func TestTeamRepo_AddTeam_AlreadyExists(t *testing.T) {

@@ -84,12 +84,16 @@ func TestDeactivateTeamHandler(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		input := team.DeactivateTeamRequest{
-			TeamID: 10,
+			TeamName: "TeamX",
 		}
 
-		// Ожидаемый вызов репозитория
-		mockTR.On("Deactivation", mock.Anything, input.TeamID).
-			Return(nil)
+		mockTR.On("Deactivation", mock.Anything, input.TeamName).Return(nil)
+		mockTR.On("GetTeamWithMembers", mock.Anything, input.TeamName).Return(&team.Team{
+			TeamName: input.TeamName,
+			Members: []*user.User{
+				{Id: "u1", Username: "Alice", TeamID: 1, IsActive: false},
+			},
+		}, nil)
 
 		body, _ := json.Marshal(input)
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
@@ -102,8 +106,7 @@ func TestDeactivateTeamHandler(t *testing.T) {
 		var resp map[string]interface{}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		require.Equal(t, float64(10), resp["team_id"])
-		require.Equal(t, "ok", resp["status"])
+		require.Equal(t, "TeamX", resp["team"].(map[string]interface{})["team_name"])
 	})
 
 	t.Run("invalid_json", func(t *testing.T) {
@@ -111,16 +114,14 @@ func TestDeactivateTeamHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		router.DeactivateTeam(w, req)
-
 		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("missing_team_id", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"team_id": 0}`))
+	t.Run("missing_team_name", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"team_name": ""}`))
 		w := httptest.NewRecorder()
 
 		router.DeactivateTeam(w, req)
-
 		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -129,22 +130,18 @@ func TestDeactivateTeamHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		router.DeactivateTeam(w, req)
-
 		require.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	})
 
 	t.Run("repo_error", func(t *testing.T) {
-		input := team.DeactivateTeamRequest{TeamID: 99}
-
-		mockTR.On("Deactivation", mock.Anything, 99).
-			Return(errors.New("db error"))
+		input := team.DeactivateTeamRequest{TeamName: "TeamY"}
+		mockTR.On("Deactivation", mock.Anything, input.TeamName).Return(errors.New("db error"))
 
 		body, _ := json.Marshal(input)
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 		w := httptest.NewRecorder()
 
 		router.DeactivateTeam(w, req)
-
 		require.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }

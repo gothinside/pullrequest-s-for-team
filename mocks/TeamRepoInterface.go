@@ -46,17 +46,17 @@ func (_m *TeamRepoInterface) AddTeam(ctx context.Context, teamName string, membe
 	return r0, r1
 }
 
-// Deactivation provides a mock function with given fields: ctx, teamID
-func (_m *TeamRepoInterface) Deactivation(ctx context.Context, teamID int) error {
-	ret := _m.Called(ctx, teamID)
+// Deactivation provides a mock function with given fields: ctx, teanName
+func (_m *TeamRepoInterface) Deactivation(ctx context.Context, teanName string) error {
+	ret := _m.Called(ctx, teanName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Deactivation")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int) error); ok {
-		r0 = rf(ctx, teamID)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, teanName)
 	} else {
 		r0 = ret.Error(0)
 	}

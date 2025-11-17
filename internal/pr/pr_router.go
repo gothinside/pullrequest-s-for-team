@@ -3,7 +3,6 @@ package pr
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"pullreq/internal/errs"
 	jsonutils "pullreq/internal/json_utils"
@@ -85,7 +84,6 @@ func (pr *PrRouter) AssignedReviewer(w http.ResponseWriter, r *http.Request) {
 
 func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 	var id MergeRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&id); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
@@ -95,7 +93,6 @@ func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 
 	// Use the extracted ID from the struct field
 	res, err := pr.PR.Merged(r.Context(), id.PullRequestID)
-	fmt.Println(err)
 	if err != nil {
 		if errors.Is(err, errs.NotFountError) {
 			errs.JsonCodeResp(w, errs.CodeNotFound, "PR not found", http.StatusNotFound)
@@ -104,27 +101,19 @@ func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal", http.StatusInternalServerError) // Use http.StatusInternalServerError constant
 		return
 	}
-
-	// Assuming 'res' is the PullRequest object defined in your schemas,
-	// construct the response map as specified in the OpenAPI example.
 	resp := map[string]interface{}{"pr": res}
 	jsonutils.JsonResponse(w, resp, http.StatusOK)
 }
 
-// CreatePullRequest handles creating a new pull request and assigning reviewers
 func (pr *PrRouter) CreatePullRequest(w http.ResponseWriter, r *http.Request) {
 	var req CreatePullRequestRequest
 
-	// Decode the JSON request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
 	res, err := pr.PR.Create(r.Context(), req)
-	if err != nil {
-		fmt.Println(err)
-	}
 	if err != nil {
 		if errors.Is(err, errs.NotFountError) {
 			errs.JsonCodeResp(w, errs.CodeNotFound, "Author/Team not exist", http.StatusNotFound)
@@ -134,6 +123,10 @@ func (pr *PrRouter) CreatePullRequest(w http.ResponseWriter, r *http.Request) {
 			errs.JsonCodeResp(w, errs.CodePRExists, "Pre already exist", 409)
 			return
 		}
+		// if errors.Is(err, errs.NoCandidateError) {
+		// 	errs.JsonCodeResp(w, errs.CodePRExists, "Team have no active users", 409)
+		// 	return
+		// }
 		http.Error(w, "Internal", 500)
 		return
 	}

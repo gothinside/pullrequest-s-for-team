@@ -1,22 +1,22 @@
 curl -X POST http://localhost:8080/team/add \
      -H "Content-Type: application/json" \
      -d '{
-           "team_name": "payments2",
+           "team_name": "back",
            "members": [
              {
-               "user_id": "u1",
-               "username": "Alice",
+               "user_id": "petr",
+               "username": "Vlad2",
                "is_active": true
              },
              {
-               "user_id": "u2",
-               "username": "Bob",
+               "user_id": "xr",
+               "username": "vv",
                "is_active": true
              }
            ]
          }'
 
-curl -X GET "http://localhost:8080/team/get?team_name=payments3"         
+curl -X GET "http://localhost:8080/team/get?team_name=back"         
 
 curl -X POST http://localhost:8080/team/add \
      -H "Content-Type: application/json" \
@@ -40,7 +40,7 @@ curl -X GET "http://localhost:8080/team/get?team_name=payments3"
 
 curl -X POST http://localhost:8080/users/setIsActive \
      -H "Content-Type: application/json" \
-     -d '{"user_id": "u1", "is_active": false}'
+     -d '{"user_id": "petr", "is_active": false}'
 
 curl -X POST http://localhost:8080/pullRequest/create \
 -H "Content-Type: application/json" \
@@ -91,6 +91,6 @@ curl -X GET "http://localhost:8080/users/getReview?user_id=u2"
 
 curl -X GET "http://localhost:8080/users/getStat?user_id=u2"
 
-curl -X POST "http://localhost:8080/team/deactivate" \
+curl -X POST "http://localhost:8080/team/deactivation" \
   -H "Content-Type: application/json" \
-  -d "{"team_id": 1}"
+  -d '{"team_name": "back"}'
