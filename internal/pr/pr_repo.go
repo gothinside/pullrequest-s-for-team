@@ -53,10 +53,7 @@ func (PR *PullRequestRepo) AssignedReviewer(ctx context.Context, PrID, UserID st
 	if pr.Status == "MERGED" {
 		return nil, "", errs.PRMergedError
 	}
-<<<<<<< HEAD
-=======
 
->>>>>>> dbe791d (-a)
 	users, err := PR.TR.GetTeamMember(ctx, teamID)
 	if err != nil {
 		return nil, "", err
@@ -204,6 +201,7 @@ func (PR *PullRequestRepo) Merged(ctx context.Context, ID string) (*PullRequest,
 func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequest) (*PullRequest, error) {
 	if err := PR.Check(ctx, req.ID); err != nil {
 		return nil, err
+
 	}
 
 	teamID, err := PR.TR.GetTeamByUserID(ctx, req.AuthorID)
@@ -276,15 +274,10 @@ func (PR *PullRequestRepo) Create(ctx context.Context, req CreatePullRequestRequ
 			return nil, err
 		}
 	}
-<<<<<<< HEAD
-	
-=======
 
->>>>>>> dbe791d (-a)
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-
 	return pr, nil
 }
 

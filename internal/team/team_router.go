@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"pullreq/internal/errs"
 	jsonutils "pullreq/internal/json_utils"
@@ -132,7 +131,6 @@ func (tr *TeamRouter) GetTeamWithMembersHandler(w http.ResponseWriter, r *http.R
 	if err != nil {
 		if err == sql.ErrNoRows {
 			errs.JsonCodeResp(w, errs.CodeNotFound, "Team not found", http.StatusNotFound)
-			log.Println(err)
 			return
 		} else {
 			http.Error(w, "Internal error", http.StatusBadRequest)

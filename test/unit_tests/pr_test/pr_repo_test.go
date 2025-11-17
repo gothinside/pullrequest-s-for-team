@@ -27,7 +27,52 @@ func TestMain(m *testing.M) {
 }
 
 func cleanDB(db *sql.DB) error {
-	_, err := db.Exec(`TRUNCATE TABLE userspr, pr, users, teams RESTART IDENTITY CASCADE;`)
+	schema := `
+DROP TABLE IF EXISTS userspr CASCADE;
+DROP TABLE IF EXISTS usershistory CASCADE;
+DROP TABLE IF EXISTS pr CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS teams CASCADE;
+
+CREATE TABLE teams(
+    id SERIAL PRIMARY KEY,
+    team_name VARCHAR(128) UNIQUE
+);
+
+CREATE TABLE users (
+    id VARCHAR(256) PRIMARY KEY,
+    username VARCHAR(2000) UNIQUE NOT NULL,
+    team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+    is_active BOOLEAN NOT NULL
+);
+
+CREATE TABLE pr (
+    id VARCHAR(256) PRIMARY KEY,
+    pr_name varchar(2000),
+    author_id VARCHAR(256) NOT NULL REFERENCES users(id),
+    pr_status VARCHAR(256),
+    created_ad TIMESTAMP,
+    mergerd_at TIMESTAMP
+);
+
+CREATE TABLE userspr (
+    user_id    VARCHAR(256) NOT NULL REFERENCES users(id),
+    request_id VARCHAR(256) NOT NULL REFERENCES pr(id),
+    PRIMARY KEY (user_id, request_id)
+);
+
+CREATE TABLE usershistory(
+    user_id VARCHAR(256) NOT NULL REFERENCES users(id),
+    pr_count INTEGER,
+    PRIMARY KEY (user_id)
+);
+
+CREATE INDEX idx_pr_author_id ON pr(author_id);
+CREATE INDEX idx_users_team_id ON users(team_id);
+CREATE INDEX idx_teams_team_name ON teams(team_name);
+`
+
+	_, err := db.Exec(schema)
 	return err
 }
 
@@ -76,7 +121,7 @@ func setupTeam(ctx context.Context, db *sql.DB) error {
 func TestPullRequestRepo_Create_GetMerge(t *testing.T) {
 	ctx := context.Background()
 	if err := setupDB(ctx, testDB); err != nil {
-		t.Fatalf(err.Error())
+		panic(err)
 	}
 
 	UR := &user.UserRepo{DB: testDB}
@@ -86,8 +131,8 @@ func TestPullRequestRepo_Create_GetMerge(t *testing.T) {
 	if err := setupTeam(ctx, testDB); err != nil {
 		t.Fatalf("failed to setup team: %v", err)
 	}
-
-	prReq := pr.CreatePullRequestRequest{ID: "pr1", PullRequestName: "My First PR", AuthorID: "u"}
+	ID := "prmrg"
+	prReq := pr.CreatePullRequestRequest{ID: "prmrg", PullRequestName: "My First PR", AuthorID: "u"}
 	createdPR, err := repo.Create(ctx, prReq)
 	if err != nil {
 		t.Fatalf("failed to create PR: %v", err)
@@ -96,7 +141,7 @@ func TestPullRequestRepo_Create_GetMerge(t *testing.T) {
 		t.Fatalf("expected assigned reviewers, got none")
 	}
 
-	gotPR, err := repo.GetPr(ctx, "pr1")
+	gotPR, err := repo.GetPr(ctx, ID)
 	if err != nil {
 		t.Fatalf("failed to get PR: %v", err)
 	}
@@ -104,7 +149,7 @@ func TestPullRequestRepo_Create_GetMerge(t *testing.T) {
 		t.Fatalf("expected PR ID %s, got %s", prReq.ID, gotPR.ID)
 	}
 
-	mergedPR, err := repo.Merged(ctx, "pr1")
+	mergedPR, err := repo.Merged(ctx, ID)
 	if err != nil {
 		t.Fatalf("failed to merge PR: %v", err)
 	}
@@ -130,10 +175,10 @@ func insertPR(t *testing.T, prID string, authorID string, reviewers []string) {
 func TestAssignedReviewerIntegration(t *testing.T) {
 	ctx := context.Background()
 	if err := setupDB(ctx, testDB); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("Erorr setup")
 	}
 	if err := setupTeam(ctx, testDB); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("Error setup")
 	}
 
 	UR := &user.UserRepo{DB: testDB}

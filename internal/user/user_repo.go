@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"pullreq/internal/errs"
 
 	sq "github.com/Masterminds/squirrel"
@@ -133,9 +132,7 @@ SET username = EXCLUDED.username,
 	if err != nil {
 		return err
 	}
-	// Use a transaction or DB to execute
 	_, err = tx.Exec(sql, args...)
-	fmt.Println(err)
 	if err != nil {
 		return err
 	}

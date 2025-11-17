@@ -137,6 +137,6 @@ func (pr *PrRouter) CreatePullRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal", 500)
 		return
 	}
-	resp := map[string]interface{}{"string": res}
+	resp := map[string]interface{}{"pr": res}
 	jsonutils.JsonResponse(w, resp, http.StatusCreated)
 }

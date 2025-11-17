@@ -1,0 +1,25 @@
+version: '2.8'
+
+services:
+  e2e_test_db: 
+    image: postgres:15-alpine 
+    restart: always 
+    environment: 
+      POSTGRES_DB: tr 
+      POSTGRES_USER: postgres 
+      POSTGRES_PASSWORD: 123
+    volumes:
+      # "./migrations/init.sql" - путь к миграциям БД
+      - ./postgresql/migrations.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5429:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U postgres -d tr'"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+networks:
+  internal:

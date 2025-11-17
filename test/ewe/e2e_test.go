@@ -1,149 +1,165 @@
-package e2e
+package tests
 
-// import (
-// 	"bytes"
-// 	"encoding/json"
-// 	"fmt"
-// 	"io"
-// 	"net/http"
-// 	"strconv"
-// 	"testing"
-// 	"time"
-// )
+import (
+	"bytes"
+	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-// func TestE2E(t *testing.T) {
-// 	baseURL := "http://localhost:8080"
+	"pullreq/internal/pr"
+	"pullreq/internal/team"
+	"pullreq/internal/user"
 
-// 	// Generate dynamic IDs
-// 	ts := strconv.FormatInt(time.Now().UnixNano(), 10)
-// 	teamName := "team-" + ts
-// 	user1 := "u1-" + ts
-// 	user2 := "u2-" + ts
-// 	prID := "pr-" + ts
+	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/stretchr/testify/require"
+)
 
-// 	client := &http.Client{}
+type TestEnv struct {
+	DB     *sql.DB
+	Server *httptest.Server
+}
 
-// 	// ----------------------------
-// 	// 1. Create team with users
-// 	// ----------------------------
-// 	teamBody := map[string]interface{}{
-// 		"team_name": teamName,
-// 		"members": []map[string]interface{}{
-// 			{"user_id": user1, "username": "Alice", "is_active": true},
-// 			{"user_id": user2, "username": "Bob", "is_active": true},
-// 		},
-// 	}
-// 	b, _ := json.Marshal(teamBody)
-// 	resp, err := client.Post(baseURL+"/team/add", "application/json", bytes.NewReader(b))
-// 	if err != nil {
-// 		t.Fatalf("failed to create team: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusCreated {
-// 		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
-// 	}
-// 	resp.Body.Close()
+func SetupTestEnv() (*TestEnv, error) {
+	var err error
+	db, err := sql.Open("postgres", "host=localhost port=5424 user=postgres password=123 dbname=tr sslmode=disable")
+	if err != nil {
+		panic(err)
+	}
 
-// 	// ----------------------------
-// 	// 2. Create a Pull Request
-// 	// ----------------------------
-// 	prBody := map[string]interface{}{
-// 		"pull_request_id":   prID,
-// 		"pull_request_name": "Add search feature",
-// 		"author_id":         user1,
-// 	}
-// 	b, _ = json.Marshal(prBody)
-// 	resp, err = client.Post(baseURL+"/pullRequest/create", "application/json", bytes.NewReader(b))
-// 	if err != nil {
-// 		t.Fatalf("failed to create PR: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusCreated {
-// 		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
-// 	}
-// 	var prResp struct {
-// 		PR struct {
-// 			PullRequestID     string   `json:"pull_request_id"`
-// 			PullRequestName   string   `json:"pull_request_name"`
-// 			AuthorID          string   `json:"author_id"`
-// 			Status            string   `json:"status"`
-// 			AssignedReviewers []string `json:"assigned_reviewers"`
-// 		} `json:"pr"`
-// 	}
-// 	bodyBytes, _ := io.ReadAll(resp.Body)
-// 	json.Unmarshal(bodyBytes, &prResp)
-// 	resp.Body.Close()
-// 	if prResp.PR.Status != "OPEN" || len(prResp.PR.AssignedReviewers) == 0 {
-// 		t.Fatalf("PR creation failed: %+v", prResp.PR)
-// 	}
-// 	oldReviewer := prResp.PR.AssignedReviewers[0]
+	userRepo := &user.UserRepo{DB: db}
+	teamRepo := &team.TeamRepo{DB: db, UR: userRepo}
+	prRepo := &pr.PullRequestRepo{DB: db, UR: userRepo, TR: teamRepo}
 
-// 	// ----------------------------
-// 	// 3. Reassign a reviewer
-// 	// ----------------------------
-// 	reassignBody := map[string]interface{}{
-// 		"pull_request_id": prID,
-// 		"old_user_id":     oldReviewer,
-// 	}
-// 	b, _ = json.Marshal(reassignBody)
-// 	resp, err = client.Post(baseURL+"/pullRequest/reassign", "application/json", bytes.NewReader(b))
-// 	if err != nil {
-// 		t.Fatalf("failed to reassign reviewer: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusOK {
-// 		t.Fatalf("expected 200 OK for reassign, got %d", resp.StatusCode)
-// 	}
-// 	var reassignResp struct {
-// 		PR         interface{} `json:"pr"`
-// 		ReplacedBy string      `json:"replaced_by"`
-// 	}
-// 	bodyBytes, _ = io.ReadAll(resp.Body)
-// 	json.Unmarshal(bodyBytes, &reassignResp)
-// 	resp.Body.Close()
+	teamRouter := &team.TeamRouter{TR: teamRepo}
+	userRouter := &user.UserRouter{UR: userRepo}
+	prRouter := &pr.PrRouter{PR: prRepo}
 
-// 	if reassignResp.ReplacedBy == oldReviewer {
-// 		t.Fatalf("expected new reviewer different from old reviewer")
-// 	}
+	r := chi.NewRouter()
 
-// 	// ----------------------------
-// 	// 4. Merge the PR
-// 	// ----------------------------
-// 	mergeBody := map[string]interface{}{
-// 		"pull_request_id": prID,
-// 	}
-// 	b, _ = json.Marshal(mergeBody)
-// 	resp, err = client.Post(baseURL+"/pullRequest/merge", "application/json", bytes.NewReader(b))
-// 	if err != nil {
-// 		t.Fatalf("failed to merge PR: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusOK {
-// 		t.Fatalf("expected 200 OK for merge, got %d", resp.StatusCode)
-// 	}
+	r.Route("/team", func(r chi.Router) {
+		r.Post("/add", teamRouter.HandleAddTeam)
+		r.Get("/get", teamRouter.GetTeamWithMembersHandler)
+		r.Post("/deactivation", teamRouter.DeactivateTeam)
+	})
 
-// 	// ----------------------------
-// 	// 5. Check user assigned PRs
-// 	// ----------------------------
-// 	resp, err = client.Get(fmt.Sprintf("%s/users/getReview?user_id=%s", baseURL, user2))
-// 	if err != nil {
-// 		t.Fatalf("failed to get user reviews: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusOK {
-// 		t.Fatalf("expected 200 OK for getReview, got %d", resp.StatusCode)
-// 	}
-// 	resp.Body.Close()
+	r.Route("/users", func(r chi.Router) {
+		r.Post("/setIsActive", userRouter.RouterSetActiviry)
+		r.Get("/getReview", userRouter.GetUserReviewsHandler)
+		r.Get("/getStat", userRouter.GetStat)
+	})
 
-// 	// ----------------------------
-// 	// 6. Set a user inactive
-// 	// ----------------------------
-// 	setInactiveBody := map[string]interface{}{
-// 		"user_id":   user2,
-// 		"is_active": false,
-// 	}
-// 	b, _ = json.Marshal(setInactiveBody)
-// 	resp, err = client.Post(baseURL+"/users/setIsActive", "application/json", bytes.NewReader(b))
-// 	if err != nil {
-// 		t.Fatalf("failed to set user inactive: %v", err)
-// 	}
-// 	if resp.StatusCode != http.StatusOK {
-// 		t.Fatalf("expected 200 OK for setIsActive, got %d", resp.StatusCode)
-// 	}
-// 	resp.Body.Close()
-// }
+	r.Route("/pullRequest", func(r chi.Router) {
+		r.Post("/create", prRouter.CreatePullRequest)
+		r.Post("/merge", prRouter.Merge)
+		r.Post("/reassign", prRouter.AssignedReviewer)
+	})
+
+	return &TestEnv{
+		DB:     db,
+		Server: httptest.NewServer(r),
+	}, nil
+}
+
+func Test_CreateTeam_E2E(t *testing.T) {
+	env, err := SetupTestEnv()
+	require.NoError(t, err)
+	defer env.Server.Close()
+	defer env.DB.Close()
+
+	body := `{
+           "team_name": "payments2",
+           "members": [
+             {
+               "user_id": "u1",
+               "username": "Alice",
+               "is_active": true
+             },
+             {
+               "user_id": "u2",
+               "username": "Bob",
+               "is_active": true
+             },
+			 {
+               "user_id": "u3",
+               "username": "Vlad",
+               "is_active": true
+             }
+           ]
+         }`
+	resp, err := http.Post(env.Server.URL+"/team/add", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode)
+}
+
+func Test_GetTeam_E2E(t *testing.T) {
+	env, err := SetupTestEnv()
+	require.NoError(t, err)
+	defer env.Server.Close()
+
+	resp, err := http.Get(env.Server.URL + "/team/get?team_name=payments2")
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+}
+
+func Test_DeactivateTeam_E2E(t *testing.T) {
+	env, err := SetupTestEnv()
+	require.NoError(t, err)
+	defer env.Server.Close()
+
+	body := `{"team_id": 1}`
+
+	resp, err := http.Post(env.Server.URL+"/team/deactivation", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+}
+
+func Test_CreatePullRequest_E2E(t *testing.T) {
+	env, err := SetupTestEnv()
+	require.NoError(t, err)
+	defer env.Server.Close()
+
+	body := `{
+		"pull_request_id": "pr1",
+		"pull_request_name": "Fixcrash",
+		"author_id": "u1"
+	}`
+
+	resp, err := http.Post(env.Server.URL+"/pullRequest/create", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	out := make(map[string]pr.PullRequest)
+	err = json.Unmarshal(respBody, &out)
+	require.NoError(t, err)
+
+	require.Equal(t, "pr1", out["pr"].ID)
+}
+
+func Test_AssignReviewer_E2E(t *testing.T) {
+	env, err := SetupTestEnv()
+	require.NoError(t, err)
+	defer env.Server.Close()
+	defer env.DB.Close()
+
+	body := `{
+		"pull_request_id": "pr1",
+		"old_user_id": "u2"
+	}`
+
+	resp, err := http.Post(env.Server.URL+"/pullRequest/reassign", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	data, _ := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+
+	var out map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &out))
+}
