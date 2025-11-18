@@ -87,7 +87,6 @@ func (tr *TeamRouter) HandleAddTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read and close body safely
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
@@ -108,7 +107,6 @@ func (tr *TeamRouter) HandleAddTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Respond with created team
 	response := map[string]interface{}{
 		"team": newTeam,
 	}
@@ -116,7 +114,6 @@ func (tr *TeamRouter) HandleAddTeam(w http.ResponseWriter, r *http.Request) {
 }
 
 func (tr *TeamRouter) GetTeamWithMembersHandler(w http.ResponseWriter, r *http.Request) {
-	// 1. Извлекаем параметр запроса 'team_name' из URL.
 	teamName := r.URL.Query().Get("team_name")
 	if teamName == "" {
 		http.Error(w, "Отсутствует обязательный параметр запроса: team_name", http.StatusBadRequest)
