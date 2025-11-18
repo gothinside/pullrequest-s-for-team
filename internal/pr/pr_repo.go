@@ -307,7 +307,9 @@ func selectReviewers(users []*user.User) []string {
 	v1 := rand.IntN(len(users))
 
 	v2 := rand.IntN(len(users))
-
+	if len(users) == 1 {
+		return []string{users[v1].Id}
+	}
 	if v1 == v2 {
 		v2 = (v1 + 1) % len(users)
 	}
