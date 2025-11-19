@@ -30,7 +30,7 @@ func main() {
 	sugar := logger.Sugar()
 
 	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
+	dbPort := os.Getenv("DB_PORT_IN") //Docker always start at this port:) but you can change envs
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
