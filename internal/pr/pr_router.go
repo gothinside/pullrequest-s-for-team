@@ -40,23 +40,18 @@ type ReassignRequest struct {
 func (pr *PrRouter) AssignedReviewer(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReassignRequest
 
-	// 1. Декодирование запроса
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 
-	// 2. Вызов бизнес-логики
 	updatedPR, replacedByID, err := pr.PR.AssignedReviewer(r.Context(), reqBody.PullRequestID, reqBody.CurrentReviewerID)
 	if err != nil {
 		if errors.Is(err, errs.NotFountError) {
 			errs.JsonCodeResp(w, errs.CodeNotFound, "PR or user not found", http.StatusNotFound)
 			return
 		}
-
-		// Обработка ошибок нарушения доменных правил (409 Conflict)
-		// Вам нужно сопоставить ваши внутренние ошибки с кодами ошибок OpenAPI:
 		if errors.Is(err, errs.PRMergedError) {
 			errs.JsonCodeResp(w, "PR_MERGED", "cannot reassign on merged PR", http.StatusConflict)
 			return
@@ -69,7 +64,6 @@ func (pr *PrRouter) AssignedReviewer(w http.ResponseWriter, r *http.Request) {
 			errs.JsonCodeResp(w, "NO_CANDIDATE", "no active replacement candidate in team", http.StatusConflict)
 			return
 		}
-		// Внутренние ошибки сервера по умолчанию
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -88,7 +82,6 @@ func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
-	// Close the body after reading
 	defer r.Body.Close()
 
 	// Use the extracted ID from the struct field
@@ -98,7 +91,7 @@ func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 			errs.JsonCodeResp(w, errs.CodeNotFound, "PR not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Internal", http.StatusInternalServerError) // Use http.StatusInternalServerError constant
+		http.Error(w, "Internal", http.StatusInternalServerError)
 		return
 	}
 	resp := map[string]interface{}{"pr": res}
