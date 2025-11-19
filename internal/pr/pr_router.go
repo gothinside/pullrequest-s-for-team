@@ -72,7 +72,6 @@ func (pr *PrRouter) AssignedReviewer(w http.ResponseWriter, r *http.Request) {
 		"replaced_by": replacedByID,
 	}
 
-	// Установка статуса 200 OK и отправка JSON ответа
 	jsonutils.JsonResponse(w, resp, http.StatusOK)
 }
 
@@ -84,7 +83,6 @@ func (pr *PrRouter) Merge(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Use the extracted ID from the struct field
 	res, err := pr.PR.Merged(r.Context(), id.PullRequestID)
 	if err != nil {
 		if errors.Is(err, errs.NotFountError) {
