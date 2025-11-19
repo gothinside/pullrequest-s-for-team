@@ -28,10 +28,10 @@ run_main_test:
 	make uint-down
 
 e2e-up:
-	docker compose -f ./test/docker-compose.e2e.yml up -d
+	docker-compose -f ./test/docker-compose.e2e.yml up -d
 
 e2e-down:
-	docker compose -f ./test/docker-compose.e2e.yml down -v
+	docker-compose -f ./test/docker-compose.e2e.yml down -v
 
 e2e-test:
 	make e2e-up
@@ -49,3 +49,44 @@ docker_compose:
 docker_compose_down:
 	@echo "-- stopping docker compose"
 	docker compose -f docker-compose.yml down
+
+
+
+
+
+.PHONY: docker_compose
+docker_compose_old_version: 
+	@echo "-- starting docker compose"
+	docker-compose -f docker-compose.yml up
+
+
+docker_compose_down_old_version:
+	@echo "-- stopping docker compose"
+	docker-compose -f docker-compose.yml down
+
+uint-up_old:
+	docker-compose -f ./test/docker-compose.uint.yml up -d
+
+uint-down_old:
+	docker-compose -f ./test/docker-compose.uint.yml down -v
+
+run_main_test_old:
+	make uint-up_old
+	sleep 2
+	-go test ./test/unit_tests/... -coverprofile=coverage.out -coverpkg=./internal/...
+	-go tool cover -func=coverage.out
+	-rm -f coverage.out
+	sleep 1
+	make uint-down_old
+
+e2e-up_old:
+	docker-compose -f ./test/docker-compose.e2e.yml up -d
+
+e2e-down_old:
+	docker-compose -f ./test/docker-compose.e2e.yml down -v
+
+e2e-test_old:
+	make e2e-up_old
+	sleep 2
+	-go test ./test/ewe -v   
+	make e2e-down_old
